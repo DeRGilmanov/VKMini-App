@@ -14,25 +14,42 @@ load_dotenv()
 # ===== НАСТРОЙКА =====
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), "chat_history.db")
 VK_TOKEN = os.getenv("VK_TOKEN", "")
+YANDEX_API_KEY = os.getenv("YANDEX_API_KEY", "")
+YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID", "")
 VK_API_VERSION = "5.199"
 GROUP_ID = os.getenv("GROUP_ID", "236213880")
 
 print(f"📁 База данных: {DATABASE_PATH}")
 print(f"📁 Файл существует: {os.path.exists(DATABASE_PATH)}")
 print(f"🔑 VK Token: {'✅ Найден' if VK_TOKEN else '❌ Не найден'}")
+print(f"🤖 Yandex GPT: {'✅ Найден' if YANDEX_API_KEY else '❌ Не найден'}")
 print(f"👥 Group ID: {GROUP_ID}")
 
 # ===== FASTAPI =====
 app = FastAPI(title="AI Assistant Bot API")
 
-# CORS настройки
+# CORS настройки для VK Mini App
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://vk.com",
+        "https://m.vk.com",
+        "https://id.vk.com",
+        "https://vkmini-app.onrender.com",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware для добавления заголовков VK Mini App
+@app.middleware("http")
+async def add_vk_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "ALLOWALL"
+    response.headers["Content-Security-Policy"] = "frame-ancestors https://vk.com https://m.vk.com"
+    return response
 
 # ===== ФУНКЦИИ РАБОТЫ С БД =====
 def get_db_connection():
@@ -77,43 +94,18 @@ def get_db_connection():
     return conn
 
 def get_chat_name(peer_id: int) -> str:
+    """Получение названия беседы из БД"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM chat_names WHERE peer_id = ?", (peer_id,))
         row = cursor.fetchone()
-        
-        if row and row['name']:
-            conn.close()
-            return row['name']
         conn.close()
         
-        if VK_TOKEN:
-            chat_id = peer_id - 2000000000
-            url = "https://api.vk.com/method/messages.getChat"
-            params = {
-                "chat_id": chat_id,
-                "access_token": VK_TOKEN,
-                "v": VK_API_VERSION
-            }
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
-            
-            if "response" in data:
-                chat = data["response"]
-                if "title" in chat and chat["title"]:
-                    chat_name = chat["title"]
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO chat_names (peer_id, name, updated_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP)
-                    """, (peer_id, chat_name))
-                    conn.commit()
-                    conn.close()
-                    return chat_name
-        
-        return f"Беседа {peer_id - 2000000000}"
+        if row and row['name']:
+            return row['name']
+        else:
+            return f"Беседа {peer_id - 2000000000}"
     except Exception as e:
         print(f"Ошибка: {e}")
         return f"Беседа {peer_id - 2000000000}"
@@ -168,6 +160,51 @@ def get_all_chats_from_db():
         print(f"Ошибка: {e}")
         return []
 
+async def ask_yandex_gpt(question: str, context: str) -> str:
+    """Запрос к Yandex GPT"""
+    if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
+        return "Yandex GPT не настроен. Добавьте API ключ в переменные окружения."
+    
+    try:
+        url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+        headers = {
+            "Authorization": f"Api-Key {YANDEX_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "modelUri": f"gpt://{YANDEX_FOLDER_ID}/yandexgpt-lite",
+            "completionOptions": {
+                "stream": False,
+                "temperature": 0.6,
+                "maxTokens": 1000
+            },
+            "messages": [
+                {
+                    "role": "system",
+                    "text": "Ты помощник, который отвечает на вопросы на основе истории чата. Отвечай кратко и по существу. Если ответа нет в истории, скажи об этом честно."
+                },
+                {
+                    "role": "user",
+                    "text": f"Вот история чата:\n{context}\n\nВопрос: {question}\n\nОтвет:"
+                }
+            ]
+        }
+        
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        result = response.json()
+        
+        if 'result' in result and 'alternatives' in result['result']:
+            return result['result']['alternatives'][0]['message']['text']
+        else:
+            return "Извините, не удалось получить ответ от Yandex GPT."
+            
+    except requests.exceptions.Timeout:
+        return "Превышено время ожидания ответа от Yandex GPT."
+    except Exception as e:
+        print(f"Ошибка Yandex GPT: {e}")
+        return f"Ошибка при обращении к Yandex GPT: {str(e)}"
+
 # ===== API ЭНДПОИНТЫ =====
 
 @app.get("/api/chats")
@@ -177,6 +214,43 @@ async def get_chats():
         return {"chats": chats}
     except Exception as e:
         return {"chats": []}
+
+@app.get("/api/chat/{peer_id}/name")
+async def get_chat_name_endpoint(peer_id: int):
+    """Получение названия беседы"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM chat_names WHERE peer_id = ?", (peer_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row and row['name']:
+            return {"name": row['name']}
+        else:
+            return {"name": f"Беседа {peer_id - 2000000000}"}
+    except Exception as e:
+        return {"name": f"Беседа {peer_id - 2000000000}"}
+
+@app.post("/api/chat/{peer_id}/name")
+async def update_chat_name(peer_id: int, request: Request):
+    """Обновление названия беседы"""
+    try:
+        data = await request.json()
+        name = data.get('name', '')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO chat_names (peer_id, name, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        """, (peer_id, name))
+        conn.commit()
+        conn.close()
+        
+        return {"success": True, "name": name}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.get("/api/stats")
 async def get_stats(peer_id: int):
@@ -318,12 +392,13 @@ async def ask_question(request: Request):
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Получаем последние 50 сообщений для контекста
         cursor.execute("""
             SELECT COALESCE(m.transcribed_text, m.text) as text
             FROM messages m
             WHERE m.peer_id = ? AND m.is_bot = 0
             ORDER BY m.timestamp DESC
-            LIMIT 100
+            LIMIT 50
         """, (peer_id,))
         
         messages = [row['text'] for row in cursor.fetchall() if row['text']]
@@ -336,14 +411,19 @@ async def ask_question(request: Request):
                 "timestamp": datetime.now().isoformat()
             }
         
+        # Формируем контекст (последние 30 сообщений в правильном порядке)
         context = "\n".join(reversed(messages[-30:]))
+        
+        # Получаем ответ от Yandex GPT
+        answer = await ask_yandex_gpt(question, context)
         
         return {
             "question": question,
-            "answer": f"📝 *Вопрос:* {question}\n\n📚 *На основе истории чата:*\n\n{context[:500]}...",
+            "answer": answer,
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
+        print(f"Ошибка: {e}")
         return {
             "question": question if 'question' in locals() else "",
             "answer": f"Ошибка: {str(e)}",
@@ -390,7 +470,6 @@ async def export_data(peer_id: int):
 
 @app.get("/")
 async def serve_frontend():
-    # Ищем index.html в корневой папке
     frontend_path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(frontend_path):
         return FileResponse(frontend_path)
