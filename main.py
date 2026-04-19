@@ -49,6 +49,9 @@ async def add_vk_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "ALLOWALL"
     response.headers["Content-Security-Policy"] = "frame-ancestors https://vk.com https://m.vk.com"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
 # ===== ФУНКЦИИ РАБОТЫ С БД =====
