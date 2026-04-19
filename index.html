@@ -2,10 +2,10 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>AI Assistant — Аналитика чата</title>
-    <script src="https://vk.com/js/api/openapi.js?169"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge"></script>
     <style>
         * {
             margin: 0;
@@ -230,6 +230,14 @@
             padding: 40px;
             color: #666;
         }
+        .bridge-warning {
+            background: #ffc107;
+            color: #333;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
         @media (max-width: 768px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -250,6 +258,10 @@
 </head>
 <body>
     <div class="container">
+        <div id="bridgeStatus" class="bridge-warning" style="display: none;">
+            ⚠️ Инициализация VK Bridge...
+        </div>
+
         <div class="header">
             <h1>🤖 AI Assistant Bot</h1>
             <p>Интеллектуальный анализ групповых чатов</p>
@@ -350,29 +362,45 @@
         let dailyChart, hourlyChart, typesChart;
         let allChats = [];
         let allUsers = [];
+        let vkBridge = null;
 
-        // API URL - автоматически подставляется
         const API_URL = window.location.origin;
 
-        // Инициализация VK Mini App (правильный способ)
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof VK !== 'undefined') {
-                try {
-                    // Получаем параметры запуска
-                    VK.init({ apiId: 54553175 }); // Твой API ID из ошибки
+        // ===== ИНИЦИАЛИЗАЦИЯ VK BRIDGE (ГЛАВНОЕ!) =====
+        async function initVKBridge() {
+            const statusDiv = document.getElementById('bridgeStatus');
+            
+            try {
+                // Проверяем, что мы внутри VK
+                if (window.location !== window.parent.location) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.innerHTML = '🔄 Инициализация VK Bridge...';
                     
-                    // Отправляем событие о готовности
-                    VK.callMethod('VKWebAppInit');
+                    // Инициализируем bridge
+                    vkBridge = await import('@vkontakte/vk-bridge');
+                    const bridge = vkBridge.default;
+                    
+                    // Отправляем событие инициализации
+                    const data = await bridge.send('VKWebAppInit');
+                    console.log('✅ VK Bridge инициализирован:', data);
                     
                     // Получаем данные пользователя
-                    VK.callMethod('VKWebAppGetUserInfo', {}, function(data) {
-                        console.log('VK User:', data);
-                    });
-                } catch(e) {
-                    console.log('VK init error (normal for browser):', e.message);
+                    const user = await bridge.send('VKWebAppGetUserInfo');
+                    console.log('👤 Пользователь VK:', user);
+                    
+                    statusDiv.style.display = 'none';
+                } else {
+                    console.log('Приложение открыто вне VK');
+                    statusDiv.style.display = 'none';
                 }
+            } catch (error) {
+                console.error('❌ Ошибка инициализации VK Bridge:', error);
+                statusDiv.innerHTML = '⚠️ Приложение открыто вне VK Mini App. Некоторые функции могут не работать.';
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
             }
-        });
+        }
 
         // Переключение вкладок
         document.querySelectorAll('.tab').forEach(tab => {
@@ -467,7 +495,7 @@
                     <div class="user-name">
                         <div class="user-avatar">${user.name.charAt(0)}</div>
                         ${escapeHtml(user.name)}
-                        ${i < 3 ? '<span class="badge" style="background:#0077ff; color:white; padding:2px 8px; border-radius:12px; font-size:11px;">🏆 TOP ' + (i+1) + '</span>' : ''}
+                        ${i < 3 ? '<span style="background:#0077ff; color:white; padding:2px 8px; border-radius:12px; font-size:11px; margin-left:8px;">🏆 TOP ' + (i+1) + '</span>' : ''}
                     </div>
                     <div class="user-count">${user.messages_count} сообщ.</div>
                 </div>
@@ -655,6 +683,8 @@
             return div.innerHTML;
         }
 
+        // Запуск инициализации
+        initVKBridge();
         loadChats();
     </script>
 </body>
