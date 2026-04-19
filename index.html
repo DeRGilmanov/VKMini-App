@@ -262,6 +262,25 @@
     </style>
 </head>
 <body>
+    <script src="https://vk.com/js/api/openapi.js?169"></script>
+<script>
+    // Инициализация VK Mini App
+    VK.init({ apiId: 12345678 }); // Замени на свой API ID
+    
+    // Сообщаем VK, что приложение готово
+    VK.callMethod('VKWebAppInit');
+    
+    // Получаем данные о пользователе
+    VK.callMethod('VKWebAppGetUserInfo', {}, function(data) {
+        if (data && data.type === 'VKWebAppGetUserInfoResult') {
+            console.log('Пользователь VK:', data.data);
+            // Можно отобразить имя пользователя
+            if (data.data.first_name) {
+                document.getElementById('userName').innerText = data.data.first_name + ' ' + data.data.last_name;
+            }
+        }
+    });
+</script>
     <div class="container">
         <div class="header">
             <h1>🤖 AI Assistant Bot</h1>
