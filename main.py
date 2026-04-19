@@ -7,7 +7,6 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 import io
-from typing import Optional, List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,7 +37,6 @@ app.add_middleware(
 # ===== ФУНКЦИИ РАБОТЫ С БД =====
 def get_db_connection():
     if not os.path.exists(DATABASE_PATH):
-        # Создаем базу данных если её нет
         conn = sqlite3.connect(DATABASE_PATH)
         conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
@@ -79,9 +77,7 @@ def get_db_connection():
     return conn
 
 def get_chat_name(peer_id: int) -> str:
-    """Получение названия беседы через VK API с кэшированием"""
     try:
-        # Сначала проверяем в БД
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM chat_names WHERE peer_id = ?", (peer_id,))
@@ -92,7 +88,6 @@ def get_chat_name(peer_id: int) -> str:
             return row['name']
         conn.close()
         
-        # Если нет в БД, пробуем получить через VK API
         if VK_TOKEN:
             chat_id = peer_id - 2000000000
             url = "https://api.vk.com/method/messages.getChat"
@@ -108,7 +103,6 @@ def get_chat_name(peer_id: int) -> str:
                 chat = data["response"]
                 if "title" in chat and chat["title"]:
                     chat_name = chat["title"]
-                    # Сохраняем в БД
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute("""
@@ -121,11 +115,10 @@ def get_chat_name(peer_id: int) -> str:
         
         return f"Беседа {peer_id - 2000000000}"
     except Exception as e:
-        print(f"Ошибка получения названия: {e}")
+        print(f"Ошибка: {e}")
         return f"Беседа {peer_id - 2000000000}"
 
 def get_all_chats_from_db():
-    """Получение списка всех бесед из БД"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -172,7 +165,7 @@ def get_all_chats_from_db():
         conn.close()
         return chats
     except Exception as e:
-        print(f"Ошибка получения бесед: {e}")
+        print(f"Ошибка: {e}")
         return []
 
 # ===== API ЭНДПОИНТЫ =====
@@ -183,7 +176,6 @@ async def get_chats():
         chats = get_all_chats_from_db()
         return {"chats": chats}
     except Exception as e:
-        print(f"Ошибка в /api/chats: {e}")
         return {"chats": []}
 
 @app.get("/api/stats")
@@ -261,7 +253,7 @@ async def get_stats(peer_id: int):
             "message_types": message_types
         }
     except Exception as e:
-        print(f"Ошибка в /api/stats: {e}")
+        print(f"Ошибка: {e}")
         return {
             "total_messages": 0,
             "unique_users": 0,
@@ -313,7 +305,7 @@ async def get_messages(peer_id: int, limit: int = 50, offset: int = 0):
             "offset": offset
         }
     except Exception as e:
-        print(f"Ошибка в /api/messages: {e}")
+        print(f"Ошибка: {e}")
         return {"messages": [], "total": 0, "limit": limit, "offset": offset}
 
 @app.post("/api/ask")
@@ -398,7 +390,8 @@ async def export_data(peer_id: int):
 
 @app.get("/")
 async def serve_frontend():
-    frontend_path = os.path.join(os.path.dirname(__file__), "mini_app", "frontend", "index.html")
+    # Ищем index.html в корневой папке
+    frontend_path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(frontend_path):
         return FileResponse(frontend_path)
     else:
