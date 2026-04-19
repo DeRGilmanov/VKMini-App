@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Assistant — Аналитика чата</title>
+    <script src="https://vk.com/js/api/openapi.js?169"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
@@ -102,9 +103,6 @@
         .chart-card h3 {
             margin-bottom: 16px;
             color: #333;
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
         canvas {
             max-height: 250px;
@@ -124,10 +122,6 @@
             padding: 12px;
             background: #f8f9fa;
             border-radius: 10px;
-            transition: background 0.2s;
-        }
-        .user-item:hover, .chat-item:hover {
-            background: #e9ecef;
         }
         .user-name, .chat-name {
             font-weight: 500;
@@ -236,13 +230,6 @@
             padding: 40px;
             color: #666;
         }
-        .badge {
-            background: #e9ecef;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            color: #666;
-        }
         @media (max-width: 768px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
@@ -262,32 +249,12 @@
     </style>
 </head>
 <body>
-    <script src="https://vk.com/js/api/openapi.js?169"></script>
-<script>
-    // Инициализация VK Mini App
-    VK.init({ apiId: 12345678 }); // Замени на свой API ID
-    
-    // Сообщаем VK, что приложение готово
-    VK.callMethod('VKWebAppInit');
-    
-    // Получаем данные о пользователе
-    VK.callMethod('VKWebAppGetUserInfo', {}, function(data) {
-        if (data && data.type === 'VKWebAppGetUserInfoResult') {
-            console.log('Пользователь VK:', data.data);
-            // Можно отобразить имя пользователя
-            if (data.data.first_name) {
-                document.getElementById('userName').innerText = data.data.first_name + ' ' + data.data.last_name;
-            }
-        }
-    });
-</script>
     <div class="container">
         <div class="header">
             <h1>🤖 AI Assistant Bot</h1>
             <p>Интеллектуальный анализ групповых чатов</p>
         </div>
 
-        <!-- Селектор бесед -->
         <div class="chat-selector">
             <label>📋 Выберите беседу:</label>
             <select id="chatSelect" onchange="changeChat()">
@@ -304,7 +271,6 @@
             <button class="tab" data-tab="ask">❓ Вопросы</button>
         </div>
 
-        <!-- Вкладка Дашборд -->
         <div id="dashboard" class="tab-content active">
             <div class="stats-grid">
                 <div class="stat-card">
@@ -348,7 +314,6 @@
             </div>
         </div>
 
-        <!-- Вкладка Беседы -->
         <div id="chats" class="tab-content">
             <div class="chart-card">
                 <h3>💬 Все беседы</h3>
@@ -356,7 +321,6 @@
             </div>
         </div>
 
-        <!-- Вкладка Участники -->
         <div id="users" class="tab-content">
             <div class="chart-card">
                 <h3>👥 Все участники</h3>
@@ -365,14 +329,12 @@
             </div>
         </div>
 
-        <!-- Вкладка История -->
         <div id="history" class="tab-content">
             <div class="messages-list" id="messagesList">
                 <div class="loading">Загрузка сообщений...</div>
             </div>
         </div>
 
-        <!-- Вкладка Вопросы -->
         <div id="ask" class="tab-content">
             <div class="ask-card">
                 <h3>❓ Задать вопрос по истории чата</h3>
@@ -389,6 +351,29 @@
         let allChats = [];
         let allUsers = [];
 
+        // API URL - автоматически подставляется
+        const API_URL = window.location.origin;
+
+        // Инициализация VK Mini App (правильный способ)
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof VK !== 'undefined') {
+                try {
+                    // Получаем параметры запуска
+                    VK.init({ apiId: 54553175 }); // Твой API ID из ошибки
+                    
+                    // Отправляем событие о готовности
+                    VK.callMethod('VKWebAppInit');
+                    
+                    // Получаем данные пользователя
+                    VK.callMethod('VKWebAppGetUserInfo', {}, function(data) {
+                        console.log('VK User:', data);
+                    });
+                } catch(e) {
+                    console.log('VK init error (normal for browser):', e.message);
+                }
+            }
+        });
+
         // Переключение вкладок
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -397,21 +382,18 @@
                 tab.classList.add('active');
                 document.getElementById(tab.dataset.tab).classList.add('active');
                 
-                // Загружаем данные при открытии вкладки
                 if (tab.dataset.tab === 'chats') loadAllChats();
                 if (tab.dataset.tab === 'users') loadAllUsers();
             });
         });
 
-        // Поиск участников
         document.getElementById('userSearch')?.addEventListener('input', function(e) {
             filterUsers(e.target.value);
         });
 
-        // Загрузка списка бесед
         async function loadChats() {
             try {
-                const response = await fetch('/api/chats');
+                const response = await fetch(`${API_URL}/api/chats`);
                 const data = await response.json();
                 const select = document.getElementById('chatSelect');
                 
@@ -438,10 +420,9 @@
             }
         }
 
-        // Загрузка всех бесед
         async function loadAllChats() {
             try {
-                const response = await fetch('/api/chats');
+                const response = await fetch(`${API_URL}/api/chats`);
                 const data = await response.json();
                 const container = document.getElementById('allChatsList');
                 
@@ -463,10 +444,9 @@
             }
         }
 
-        // Загрузка всех участников
         async function loadAllUsers() {
             try {
-                const response = await fetch(`/api/stats?peer_id=${currentPeerId || 2000000001}`);
+                const response = await fetch(`${API_URL}/api/stats?peer_id=${currentPeerId || 2000000001}`);
                 const data = await response.json();
                 
                 if (data.top_users && data.top_users.length > 0) {
@@ -487,7 +467,7 @@
                     <div class="user-name">
                         <div class="user-avatar">${user.name.charAt(0)}</div>
                         ${escapeHtml(user.name)}
-                        ${i < 3 ? '<span class="badge">🏆 TOP ' + (i+1) + '</span>' : ''}
+                        ${i < 3 ? '<span class="badge" style="background:#0077ff; color:white; padding:2px 8px; border-radius:12px; font-size:11px;">🏆 TOP ' + (i+1) + '</span>' : ''}
                     </div>
                     <div class="user-count">${user.messages_count} сообщ.</div>
                 </div>
@@ -509,11 +489,9 @@
             const select = document.getElementById('chatSelect');
             select.value = peerId;
             changeChat();
-            // Переключаемся на дашборд
             document.querySelector('.tab[data-tab="dashboard"]').click();
         }
 
-        // Смена беседы
         async function changeChat() {
             const select = document.getElementById('chatSelect');
             currentPeerId = parseInt(select.value);
@@ -522,11 +500,10 @@
             document.getElementById('answerResult').style.display = 'none';
         }
 
-        // Загрузка статистики
         async function loadStats() {
             if (!currentPeerId) return;
             try {
-                const response = await fetch(`/api/stats?peer_id=${currentPeerId}`);
+                const response = await fetch(`${API_URL}/api/stats?peer_id=${currentPeerId}`);
                 const data = await response.json();
                 
                 document.getElementById('totalMessages').innerText = data.total_messages || 0;
@@ -623,11 +600,10 @@
             });
         }
 
-        // Загрузка истории
         async function loadHistory() {
             if (!currentPeerId) return;
             try {
-                const response = await fetch(`/api/messages?peer_id=${currentPeerId}&limit=50`);
+                const response = await fetch(`${API_URL}/api/messages?peer_id=${currentPeerId}&limit=50`);
                 const data = await response.json();
                 const messagesList = document.getElementById('messagesList');
                 
@@ -649,7 +625,6 @@
             }
         }
 
-        // Задать вопрос
         async function askQuestion() {
             const question = document.getElementById('questionInput').value.trim();
             if (!question || !currentPeerId) return;
@@ -659,7 +634,7 @@
             answerDiv.innerHTML = '⏳ Генерация ответа...';
             
             try {
-                const response = await fetch('/api/ask', {
+                const response = await fetch(`${API_URL}/api/ask`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question: question, peer_id: currentPeerId })
@@ -680,7 +655,6 @@
             return div.innerHTML;
         }
 
-        // Загрузка при старте
         loadChats();
     </script>
 </body>
