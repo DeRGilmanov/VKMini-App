@@ -3,10 +3,9 @@ import sqlite3
 import os
 import requests
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
-
 import io
 from typing import Optional, List
 from dotenv import load_dotenv
@@ -36,25 +35,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ===== МОДЕЛИ ДАННЫХ =====
-class AskRequest(BaseModel):
-    question: str
-    peer_id: int
-
 # ===== ФУНКЦИИ РАБОТЫ С БД =====
 def get_db_connection():
     if not os.path.exists(DATABASE_PATH):
-        raise Exception(f"База данных не найдена: {DATABASE_PATH}")
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_chat_names_table():
-    """Создание таблицы для кэширования названий бесед"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
+        # Создаем базу данных если её нет
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                peer_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                text TEXT,
+                transcribed_text TEXT,
+                message_type TEXT DEFAULT 'text',
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_bot BOOLEAN DEFAULT 0,
+                attachments TEXT
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                first_name TEXT,
+                last_name TEXT,
+                screen_name TEXT,
+                messages_count INTEGER DEFAULT 0,
+                last_active DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.execute('''
             CREATE TABLE IF NOT EXISTS chat_names (
                 peer_id INTEGER PRIMARY KEY,
                 name TEXT,
@@ -63,9 +72,11 @@ def init_chat_names_table():
         ''')
         conn.commit()
         conn.close()
-        print("✅ Таблица chat_names создана")
-    except Exception as e:
-        print(f"Ошибка создания таблицы chat_names: {e}")
+        print("✅ База данных создана автоматически")
+    
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def get_chat_name(peer_id: int) -> str:
     """Получение названия беседы через VK API с кэшированием"""
@@ -90,11 +101,8 @@ def get_chat_name(peer_id: int) -> str:
                 "access_token": VK_TOKEN,
                 "v": VK_API_VERSION
             }
-            print(f"🔍 Запрос названия для чата {chat_id}...")
             response = requests.get(url, params=params, timeout=10)
             data = response.json()
-            
-            print(f"📡 Ответ VK API: {data}")
             
             if "response" in data:
                 chat = data["response"]
@@ -110,12 +118,10 @@ def get_chat_name(peer_id: int) -> str:
                     conn.commit()
                     conn.close()
                     return chat_name
-            elif "error" in data:
-                print(f"⚠️ Ошибка VK API: {data['error'].get('error_msg', 'Unknown')}")
         
         return f"Беседа {peer_id - 2000000000}"
     except Exception as e:
-        print(f"Ошибка получения названия беседы {peer_id}: {e}")
+        print(f"Ошибка получения названия: {e}")
         return f"Беседа {peer_id - 2000000000}"
 
 def get_all_chats_from_db():
@@ -137,10 +143,8 @@ def get_all_chats_from_db():
         
         chats = []
         for row in cursor.fetchall():
-            # Получаем название беседы
             chat_name = get_chat_name(row['peer_id'])
             
-            # Получаем последние 2 сообщения для превью
             cursor.execute("""
                 SELECT COALESCE(m.transcribed_text, m.text) as text, u.first_name, u.last_name
                 FROM messages m
@@ -171,14 +175,10 @@ def get_all_chats_from_db():
         print(f"Ошибка получения бесед: {e}")
         return []
 
-# Инициализация таблицы при запуске
-init_chat_names_table()
-
 # ===== API ЭНДПОИНТЫ =====
 
 @app.get("/api/chats")
 async def get_chats():
-    """Получение списка всех бесед"""
     try:
         chats = get_all_chats_from_db()
         return {"chats": chats}
@@ -188,7 +188,6 @@ async def get_chats():
 
 @app.get("/api/stats")
 async def get_stats(peer_id: int):
-    """Получение статистики чата"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -276,7 +275,6 @@ async def get_stats(peer_id: int):
 
 @app.get("/api/messages")
 async def get_messages(peer_id: int, limit: int = 50, offset: int = 0):
-    """Получение истории сообщений"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -319,9 +317,12 @@ async def get_messages(peer_id: int, limit: int = 50, offset: int = 0):
         return {"messages": [], "total": 0, "limit": limit, "offset": offset}
 
 @app.post("/api/ask")
-async def ask_question(request: AskRequest):
-    """Ответ на вопрос по истории чата"""
+async def ask_question(request: Request):
     try:
+        data = await request.json()
+        question = data.get('question')
+        peer_id = data.get('peer_id')
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         
@@ -331,14 +332,14 @@ async def ask_question(request: AskRequest):
             WHERE m.peer_id = ? AND m.is_bot = 0
             ORDER BY m.timestamp DESC
             LIMIT 100
-        """, (request.peer_id,))
+        """, (peer_id,))
         
         messages = [row['text'] for row in cursor.fetchall() if row['text']]
         conn.close()
         
         if not messages:
             return {
-                "question": request.question,
+                "question": question,
                 "answer": "В этом чате пока нет сообщений для анализа.",
                 "timestamp": datetime.now().isoformat()
             }
@@ -346,20 +347,19 @@ async def ask_question(request: AskRequest):
         context = "\n".join(reversed(messages[-30:]))
         
         return {
-            "question": request.question,
-            "answer": f"📝 *Вопрос:* {request.question}\n\n📚 *На основе истории чата:*\n\n{context[:500]}...",
+            "question": question,
+            "answer": f"📝 *Вопрос:* {question}\n\n📚 *На основе истории чата:*\n\n{context[:500]}...",
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
         return {
-            "question": request.question,
+            "question": question if 'question' in locals() else "",
             "answer": f"Ошибка: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
 
 @app.get("/api/export")
 async def export_data(peer_id: int):
-    """Экспорт данных в CSV"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -398,7 +398,6 @@ async def export_data(peer_id: int):
 
 @app.get("/")
 async def serve_frontend():
-    """Сервинг фронтенда"""
     frontend_path = os.path.join(os.path.dirname(__file__), "mini_app", "frontend", "index.html")
     if os.path.exists(frontend_path):
         return FileResponse(frontend_path)
@@ -410,7 +409,6 @@ if __name__ == "__main__":
     print("\n" + "="*50)
     print("🚀 Запуск FastAPI сервера...")
     print(f"📁 База данных: {DATABASE_PATH}")
-    print(f"📁 БД существует: {os.path.exists(DATABASE_PATH)}")
     print(f"📊 API доступно: http://localhost:8000")
     print("="*50 + "\n")
     uvicorn.run(app, host="0.0.0.0", port=8000)
