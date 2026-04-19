@@ -1,574 +1,109 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Assistant — Аналитика чата</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant Bot</title>
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background: #f0f2f5;
-        padding: 20px;
-      }
-      .container {
-        max-width: 1200px;
-        margin: 0 auto;
-      }
-      .header {
-        background: linear-gradient(135deg, #0077ff, #00c6ff);
-        color: white;
-        padding: 30px;
-        border-radius: 16px;
-        margin-bottom: 20px;
-      }
-      .header h1 {
-        font-size: 28px;
-        margin-bottom: 8px;
-      }
-      .chat-selector {
-        background: white;
-        border-radius: 16px;
-        padding: 15px 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        flex-wrap: wrap;
-      }
-      .chat-selector label {
-        font-weight: 500;
-        color: #333;
-      }
-      .chat-selector select {
-        padding: 10px 15px;
-        border-radius: 10px;
-        border: 1px solid #ddd;
-        font-size: 14px;
-        min-width: 300px;
-        background: white;
-        cursor: pointer;
-      }
-      .chat-info {
-        font-size: 13px;
-        color: #666;
-        margin-left: auto;
-      }
-      .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
-      }
-      .stat-card {
-        background: white;
-        border-radius: 16px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
-      .stat-value {
-        font-size: 32px;
-        font-weight: bold;
-        color: #0077ff;
-      }
-      .stat-label {
-        font-size: 14px;
-        color: #666;
-        margin-top: 8px;
-      }
-      .chart-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-        gap: 20px;
-        margin-bottom: 20px;
-      }
-      .chart-card {
-        background: white;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
-      .chart-card h3 {
-        margin-bottom: 16px;
-        color: #333;
-      }
-      canvas {
-        max-height: 250px;
-        width: 100%;
-      }
-      .top-users-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      .user-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px;
-        background: #f8f9fa;
-        border-radius: 10px;
-      }
-      .user-name {
-        font-weight: 500;
-      }
-      .user-count {
-        color: #0077ff;
-        font-weight: bold;
-      }
-      .tabs {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-      }
-      .tab {
-        background: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 25px;
-        cursor: pointer;
-        font-size: 14px;
-        transition: all 0.3s;
-      }
-      .tab.active {
-        background: #0077ff;
-        color: white;
-      }
-      .tab-content {
-        display: none;
-      }
-      .tab-content.active {
-        display: block;
-      }
-      .messages-list {
-        background: white;
-        border-radius: 16px;
-        padding: 20px;
-        max-height: 500px;
-        overflow-y: auto;
-      }
-      .message-item {
-        padding: 12px;
-        border-bottom: 1px solid #eee;
-      }
-      .message-user {
-        font-weight: bold;
-        color: #0077ff;
-      }
-      .message-time {
-        font-size: 11px;
-        color: #999;
-        margin-left: 10px;
-      }
-      .message-text {
-        margin-top: 5px;
-        color: #333;
-      }
-      .ask-card {
-        background: white;
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 20px;
-      }
-      .ask-card textarea {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 12px;
-        font-size: 14px;
-        margin: 12px 0;
-        font-family: inherit;
-        resize: vertical;
-      }
-      .ask-card button {
-        background: #0077ff;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 25px;
-        cursor: pointer;
-      }
-      .answer-result {
-        margin-top: 16px;
-        padding: 16px;
-        background: #f0f7ff;
-        border-radius: 12px;
-        white-space: pre-wrap;
-      }
-      .loading {
-        text-align: center;
-        padding: 40px;
-        color: #666;
-      }
-      @media (max-width: 768px) {
-        .stats-grid {
-          grid-template-columns: repeat(2, 1fr);
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
         }
-        .chart-row {
-          grid-template-columns: 1fr;
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
         }
-        .chat-selector {
-          flex-direction: column;
-          align-items: stretch;
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        .chat-info {
-          margin-left: 0;
-          text-align: center;
+        h1 {
+            color: #0077ff;
         }
-      }
+        .stat {
+            font-size: 32px;
+            font-weight: bold;
+            color: #0077ff;
+        }
+        button {
+            background: #0077ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container">
-      <div class="header">
-        <h1>🤖 AI Assistant Bot</h1>
-        <p>Интеллектуальный анализ групповых чатов</p>
-      </div>
-
-      <!-- Селектор бесед -->
-      <div class="chat-selector">
-        <label>📋 Выберите беседу:</label>
-        <select id="chatSelect" onchange="changeChat()">
-          <option value="">Загрузка...</option>
-        </select>
-        <div class="chat-info" id="chatInfo"></div>
-      </div>
-
-      <div class="tabs">
-        <button class="tab active" data-tab="dashboard">📊 Дашборд</button>
-        <button class="tab" data-tab="history">💬 История</button>
-        <button class="tab" data-tab="ask">❓ Вопросы</button>
-      </div>
-
-      <!-- Вкладка Дашборд -->
-      <div id="dashboard" class="tab-content active">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-value" id="totalMessages">—</div>
-            <div class="stat-label">Всего сообщений</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="uniqueUsers">—</div>
-            <div class="stat-label">Участников</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="botMessages">—</div>
-            <div class="stat-label">Ответов бота</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="recognizedMedia">—</div>
-            <div class="stat-label">Распознано</div>
-          </div>
+        <div class="card">
+            <h1>🤖 AI Assistant Bot</h1>
+            <p>Интеллектуальный анализ групповых чатов</p>
         </div>
-
-        <div class="chart-row">
-          <div class="chart-card">
-            <h3>📈 Активность по дням</h3>
-            <canvas id="dailyChart"></canvas>
-          </div>
-          <div class="chart-card">
-            <h3>🕐 Активность по часам</h3>
-            <canvas id="hourlyChart"></canvas>
-          </div>
+        
+        <div class="card">
+            <h2>📊 Статистика</h2>
+            <div id="stats">Загрузка...</div>
         </div>
-
-        <div class="chart-row">
-          <div class="chart-card">
-            <h3>🏆 Топ активных участников</h3>
-            <div id="topUsersList" class="top-users-list"></div>
-          </div>
-          <div class="chart-card">
-            <h3>📊 Типы сообщений</h3>
-            <canvas id="typesChart"></canvas>
-          </div>
+        
+        <div class="card">
+            <h2>❓ Задать вопрос</h2>
+            <textarea id="question" rows="3" placeholder="Введите вопрос по истории чата..."></textarea>
+            <button onclick="ask()">Спросить</button>
+            <div id="answer" style="margin-top: 10px;"></div>
         </div>
-      </div>
-
-      <!-- Вкладка История -->
-      <div id="history" class="tab-content">
-        <div class="messages-list" id="messagesList">
-          <div class="loading">Загрузка сообщений...</div>
-        </div>
-      </div>
-
-      <!-- Вкладка Вопросы -->
-      <div id="ask" class="tab-content">
-        <div class="ask-card">
-          <h3>❓ Задать вопрос по истории чата</h3>
-          <textarea
-            id="questionInput"
-            rows="3"
-            placeholder="Напишите ваш вопрос..."
-          ></textarea>
-          <button onclick="askQuestion()">📤 Задать вопрос</button>
-          <div
-            id="answerResult"
-            class="answer-result"
-            style="display: none"
-          ></div>
-        </div>
-      </div>
     </div>
 
     <script>
-      let currentPeerId = null;
-      let dailyChart, hourlyChart, typesChart;
-
-      // Переключение вкладок
-      document.querySelectorAll(".tab").forEach((tab) => {
-        tab.addEventListener("click", () => {
-          document
-            .querySelectorAll(".tab")
-            .forEach((t) => t.classList.remove("active"));
-          document
-            .querySelectorAll(".tab-content")
-            .forEach((c) => c.classList.remove("active"));
-          tab.classList.add("active");
-          document.getElementById(tab.dataset.tab).classList.add("active");
-        });
-      });
-
-      // Загрузка списка бесед
-      async function loadChats() {
-        try {
-          const response = await fetch("/api/chats");
-          const data = await response.json();
-          const select = document.getElementById("chatSelect");
-
-          if (data.chats && data.chats.length > 0) {
-            select.innerHTML = data.chats
-              .map(
-                (chat) =>
-                  `<option value="${chat.peer_id}">💬 ${escapeHtml(chat.name)} (${chat.messages_count} сообщ.)</option>`,
-              )
-              .join("");
-            currentPeerId = data.chats[0].peer_id;
-            document.getElementById("chatInfo").innerHTML =
-              `📊 ${data.chats.length} бесед доступно`;
-          } else {
-            select.innerHTML =
-              '<option value="2000000001">📌 Тестовая беседа</option>';
-            currentPeerId = 2000000001;
-            document.getElementById("chatInfo").innerHTML =
-              `⚠️ Нет данных о беседах`;
-          }
-
-          await loadStats();
-          await loadHistory();
-        } catch (error) {
-          console.error("Ошибка загрузки бесед:", error);
-          currentPeerId = 2000000001;
-          await loadStats();
-          await loadHistory();
+        let currentPeerId = 2000000001;
+        
+        async function loadStats() {
+            try {
+                const response = await fetch(`/api/stats?peer_id=${currentPeerId}`);
+                const data = await response.json();
+                document.getElementById('stats').innerHTML = `
+                    <div class="stat">${data.total_messages}</div>
+                    <div>всего сообщений</div>
+                    <div class="stat">${data.unique_users}</div>
+                    <div>участников</div>
+                `;
+            } catch (error) {
+                document.getElementById('stats').innerHTML = 'Ошибка загрузки';
+            }
         }
-      }
-
-      // Смена беседы
-      async function changeChat() {
-        const select = document.getElementById("chatSelect");
-        currentPeerId = parseInt(select.value);
-        await loadStats();
-        await loadHistory();
-        document.getElementById("answerResult").style.display = "none";
-      }
-
-      // Загрузка статистики
-      async function loadStats() {
-        if (!currentPeerId) return;
-        try {
-          const response = await fetch(`/api/stats?peer_id=${currentPeerId}`);
-          const data = await response.json();
-
-          document.getElementById("totalMessages").innerText =
-            data.total_messages || 0;
-          document.getElementById("uniqueUsers").innerText =
-            data.unique_users || 0;
-          document.getElementById("botMessages").innerText =
-            data.bot_messages || 0;
-          document.getElementById("recognizedMedia").innerText =
-            data.recognized_media || 0;
-
-          const topUsersList = document.getElementById("topUsersList");
-          if (data.top_users && data.top_users.length > 0) {
-            topUsersList.innerHTML = data.top_users
-              .map(
-                (user, i) => `
-                        <div class="user-item">
-                            <span>${i + 1}. ${escapeHtml(user.name)}</span>
-                            <span class="user-count">${user.messages_count} сообщ.</span>
-                        </div>
-                    `,
-              )
-              .join("");
-          } else {
-            topUsersList.innerHTML = '<div class="user-item">Нет данных</div>';
-          }
-
-          createDailyChart(data.daily_activity || []);
-          createHourlyChart(data.hourly_activity || []);
-          createTypesChart(data.message_types || []);
-        } catch (error) {
-          console.error("Ошибка загрузки статистики:", error);
+        
+        async function ask() {
+            const question = document.getElementById('question').value;
+            if (!question) return;
+            
+            document.getElementById('answer').innerHTML = '⏳ Думаю...';
+            
+            try {
+                const response = await fetch('/api/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: question, peer_id: currentPeerId })
+                });
+                const data = await response.json();
+                document.getElementById('answer').innerHTML = data.answer;
+            } catch (error) {
+                document.getElementById('answer').innerHTML = '❌ Ошибка';
+            }
         }
-      }
-
-      function createDailyChart(data) {
-        const ctx = document.getElementById("dailyChart").getContext("2d");
-        if (dailyChart) dailyChart.destroy();
-        if (data.length === 0) {
-          dailyChart = new Chart(ctx, {
-            type: "line",
-            data: { labels: [], datasets: [] },
-          });
-          return;
-        }
-        dailyChart = new Chart(ctx, {
-          type: "line",
-          data: {
-            labels: data.map((d) => d.date),
-            datasets: [
-              {
-                label: "Сообщений",
-                data: data.map((d) => d.count),
-                borderColor: "#0077ff",
-                backgroundColor: "rgba(0, 119, 255, 0.1)",
-                fill: true,
-                tension: 0.4,
-              },
-            ],
-          },
-          options: { responsive: true, maintainAspectRatio: true },
-        });
-      }
-
-      function createHourlyChart(data) {
-        const ctx = document.getElementById("hourlyChart").getContext("2d");
-        if (hourlyChart) hourlyChart.destroy();
-        const hours = Array(24).fill(0);
-        data.forEach((item) => {
-          hours[parseInt(item.hour)] = item.count;
-        });
-        hourlyChart = new Chart(ctx, {
-          type: "bar",
-          data: {
-            labels: hours.map((_, i) => `${i}:00`),
-            datasets: [
-              {
-                label: "Сообщений",
-                data: hours,
-                backgroundColor: "#0077ff",
-                borderRadius: 8,
-              },
-            ],
-          },
-          options: { responsive: true, maintainAspectRatio: true },
-        });
-      }
-
-      function createTypesChart(data) {
-        const ctx = document.getElementById("typesChart").getContext("2d");
-        if (typesChart) typesChart.destroy();
-        if (data.length === 0) {
-          typesChart = new Chart(ctx, {
-            type: "doughnut",
-            data: { labels: [], datasets: [] },
-          });
-          return;
-        }
-        const labels = { text: "Текст", voice: "Голосовые", image: "Фото" };
-        typesChart = new Chart(ctx, {
-          type: "doughnut",
-          data: {
-            labels: data.map((d) => labels[d.message_type] || d.message_type),
-            datasets: [
-              {
-                data: data.map((d) => d.count),
-                backgroundColor: ["#0077ff", "#28a745", "#ffc107"],
-              },
-            ],
-          },
-          options: { responsive: true, maintainAspectRatio: true },
-        });
-      }
-
-      // Загрузка истории
-      async function loadHistory() {
-        if (!currentPeerId) return;
-        try {
-          const response = await fetch(
-            `/api/messages?peer_id=${currentPeerId}&limit=50`,
-          );
-          const data = await response.json();
-          const messagesList = document.getElementById("messagesList");
-
-          if (data.messages && data.messages.length > 0) {
-            messagesList.innerHTML = data.messages
-              .map(
-                (msg) => `
-                        <div class="message-item">
-                            <div>
-                                <span class="message-user">${escapeHtml(msg.user_name)} ${msg.is_bot ? "(бот)" : ""}</span>
-                                <span class="message-time">${new Date(msg.timestamp).toLocaleString()}</span>
-                            </div>
-                            <div class="message-text">${escapeHtml(msg.text || "—")}</div>
-                        </div>
-                    `,
-              )
-              .join("");
-          } else {
-            messagesList.innerHTML =
-              '<div class="loading">Нет сообщений в истории</div>';
-          }
-        } catch (error) {
-          console.error("Ошибка загрузки истории:", error);
-        }
-      }
-
-      // Задать вопрос
-      async function askQuestion() {
-        const question = document.getElementById("questionInput").value.trim();
-        if (!question || !currentPeerId) return;
-
-        const answerDiv = document.getElementById("answerResult");
-        answerDiv.style.display = "block";
-        answerDiv.innerHTML = "⏳ Генерация ответа...";
-
-        try {
-          const response = await fetch("/api/ask", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              question: question,
-              peer_id: currentPeerId,
-            }),
-          });
-          const data = await response.json();
-          answerDiv.innerHTML = `<strong>❓ ${escapeHtml(data.question)}</strong><br><br>${escapeHtml(data.answer)}`;
-          document.getElementById("questionInput").value = "";
-        } catch (error) {
-          answerDiv.innerHTML = "❌ Ошибка при получении ответа";
-          console.error(error);
-        }
-      }
-
-      function escapeHtml(text) {
-        if (!text) return "";
-        const div = document.createElement("div");
-        div.textContent = text;
-        return div.innerHTML;
-      }
-
-      // Загрузка при старте
-      loadChats();
+        
+        loadStats();
     </script>
-  </body>
+</body>
 </html>
